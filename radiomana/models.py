@@ -6,7 +6,8 @@ import torchmetrics
 from einops import repeat, rearrange
 from torchinfo import summary
 from torch import nn
-from torchvision.models import squeezenet1_1
+from torch.nn import functional as F
+from torchvision.models import ViT_B_16_Weights, squeezenet1_1, vit_b_16
 
 
 class ModelBaseClass(L.LightningModule):
@@ -73,6 +74,62 @@ class HighwayBaselineModel(ModelBaseClass):
         x = repeat(x, "batch height width -> batch 3 height width")
         x = self.submodel(x)
         return x
+
+
+class HighwayViTModel(ModelBaseClass):
+    """
+    ImageNet-pretrained ViT-B/16 fine-tuned on PSD spectrograms.
+
+    The backbone expects 3-channel 224x224 images normalised with ImageNet
+    statistics, so forward() maps the (512, 243) dB PSD into that space:
+    clip to a fixed dB window, rescale to [0, 1], repeat to 3 channels,
+    resize, then normalise. The classification head is replaced with a
+    fresh linear layer for num_classes.
+    """
+
+    def __init__(
+        self,
+        num_classes: int = 9,
+        freeze_backbone: bool = False,
+        backbone_lr: float = 2e-5,
+        head_lr: float = 1e-3,
+        db_min: float = -90.0,
+        db_max: float = -10.0,
+    ):
+        super().__init__(num_classes)
+        self.save_hyperparameters()
+        self.criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
+
+        self.submodel = vit_b_16(weights=ViT_B_16_Weights.IMAGENET1K_V1)
+        self.submodel.heads.head = nn.Linear(self.submodel.hidden_dim, num_classes)
+
+        if freeze_backbone:
+            for name, param in self.submodel.named_parameters():
+                param.requires_grad = name.startswith("heads.")
+
+        # ImageNet normalisation constants, as buffers so they follow .to(device)
+        self.register_buffer("img_mean", torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1))
+        self.register_buffer("img_std", torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1))
+
+    def forward(self, x):
+        # x: (batch, 512, 243) in dB, noise floor ~ -90
+        lo, hi = self.hparams.db_min, self.hparams.db_max
+        x = (x.clamp(lo, hi) - lo) / (hi - lo)  # -> [0, 1]
+        x = repeat(x, "batch height width -> batch 3 height width")
+        x = F.interpolate(x, size=(224, 224), mode="bilinear", align_corners=False)
+        x = (x - self.img_mean) / self.img_std
+        return self.submodel(x)
+
+    def configure_optimizers(self):
+        # small lr for the pretrained backbone, larger for the fresh head
+        head_params = [p for n, p in self.submodel.named_parameters() if n.startswith("heads.") and p.requires_grad]
+        backbone_params = [p for n, p in self.submodel.named_parameters() if not n.startswith("heads.") and p.requires_grad]
+        groups = [{"params": head_params, "lr": self.hparams.head_lr}]
+        if backbone_params:
+            groups.append({"params": backbone_params, "lr": self.hparams.backbone_lr})
+        optimizer = torch.optim.AdamW(groups, weight_decay=0.05)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.trainer.estimated_stepping_batches)
+        return {"optimizer": optimizer, "lr_scheduler": {"scheduler": scheduler, "interval": "step"}}
 
 
 class StudentModel(ModelBaseClass):

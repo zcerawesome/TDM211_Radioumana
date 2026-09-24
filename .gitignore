@@ -23,3 +23,6 @@ coverage.xml
 *.pth
 *.tar
 lightning_logs/
+
+# datasets
+/fiot_highway2_f32/
