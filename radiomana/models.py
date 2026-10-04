@@ -7,7 +7,7 @@ from einops import repeat, rearrange
 from torchinfo import summary
 from torch import nn
 from torch.nn import functional as F
-from torchvision.models import ViT_B_16_Weights, squeezenet1_1, vit_b_16
+from torchvision.models import squeezenet1_1, vit_b_16
 
 
 class ModelBaseClass(L.LightningModule):
@@ -78,7 +78,7 @@ class HighwayBaselineModel(ModelBaseClass):
 
 class HighwayViTModel(ModelBaseClass):
     """
-    ImageNet-pretrained ViT-B/16 fine-tuned on PSD spectrograms.
+    ViT-B/16 trained from randomly initialised weights on PSD spectrograms.
 
     The backbone expects 3-channel 224x224 images normalised with ImageNet
     statistics, so forward() maps the (512, 243) dB PSD into that space:
@@ -100,7 +100,7 @@ class HighwayViTModel(ModelBaseClass):
         self.save_hyperparameters()
         self.criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
 
-        self.submodel = vit_b_16(weights=ViT_B_16_Weights.IMAGENET1K_V1)
+        self.submodel = vit_b_16(weights=None)  # random init, no pretrained weights
         self.submodel.heads.head = nn.Linear(self.submodel.hidden_dim, num_classes)
 
         if freeze_backbone:
