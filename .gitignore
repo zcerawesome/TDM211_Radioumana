@@ -26,3 +26,7 @@ lightning_logs/
 
 # datasets
 /fiot_highway2_f32/
+/fiot_highway1_subset/
+
+# trained model weights are stored with Git LFS
+!models/*.pt

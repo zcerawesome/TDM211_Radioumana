@@ -12,7 +12,7 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset, Subset
 from torchvision.transforms import v2
 
-from .transforms import LogNoise, RandomTimeCrop
+from .transforms import BenignSpurs, LogNoise, RandomFreqFlip, RandomFreqShift, RandomTimeCrop, RandomTimeRoll, SyntheticJammer
 
 DSET_ENV_LUT = {
     # lookup table for environment variable to dataset source URL
@@ -110,6 +110,23 @@ class Highway2Dataset(Dataset):
         return data, label
 
 
+class PairTransformDataset(Dataset):
+    """Wrap a dataset so transforms see and may change the (data, label) pair, e.g. SyntheticJammer relabelling."""
+
+    def __init__(self, dataset: Dataset, transforms: list):
+        self.dataset = dataset
+        self.transforms = transforms
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        sample = self.dataset[idx]
+        for transform in self.transforms:
+            sample = transform(sample)
+        return sample
+
+
 class HighwayDataModule(L.LightningDataModule):
     """
     Lightning datamodule for the FIOT Highway2 dataset
@@ -122,7 +139,8 @@ class HighwayDataModule(L.LightningDataModule):
     - test_dataloader: return the test dataloader
     """
 
-    def __init__(self, batch_size: int = 32, num_workers: int = 4, pin_memory: bool = True):
+    def __init__(self, batch_size: int = 32, num_workers: int = 4, pin_memory: bool = True, use_cross_site_augmentation: bool = False):
+        """use_cross_site_augmentation can be set here because Trainer.fit calls setup() with only the stage"""
         super().__init__()
         # this allows access to all hparams via self.hparams
         self.save_hyperparameters(logger=False)
@@ -133,6 +151,7 @@ class HighwayDataModule(L.LightningDataModule):
         root_dir: str = "DSET_FIOT_HIGHWAY2",
         use_oversampling: bool = False,
         use_augmentation: bool = False,
+        use_cross_site_augmentation: bool = False,
     ):
         """
         called on every process in DDP
@@ -143,6 +162,10 @@ class HighwayDataModule(L.LightningDataModule):
             whether to apply oversampling to the training set, by default False
         use_augmentation : bool, optional
             whether to apply data augmentation to the training set, by default False
+        use_cross_site_augmentation : bool, optional
+            whether to apply the augmentations that let a Highway2-trained model transfer to Highway1:
+            random time roll / frequency shift / frequency flip, synthetic tone, pulsed and noise jammers
+            (relabelled to class 4), and faint benign spurs on clean samples, by default False
         """
         augmentations = v2.Compose(
             [
@@ -158,10 +181,16 @@ class HighwayDataModule(L.LightningDataModule):
                 ),
             ]
         )
+        use_cross_site_augmentation = use_cross_site_augmentation or self.hparams.use_cross_site_augmentation
+        train_transforms = []
+        if use_augmentation:
+            train_transforms.append(augmentations)
+        if use_cross_site_augmentation:
+            train_transforms += [RandomTimeRoll(), RandomFreqShift(max_fraction=0.1), RandomFreqFlip(p=0.5)]
         data_train = Highway2Dataset(
             root_dir=root_dir,
             subset="train",
-            transform=augmentations if use_augmentation else None,
+            transform=v2.Compose(train_transforms) if train_transforms else None,
         )
         data_val = Highway2Dataset(root_dir=root_dir, subset="train", transform=None)
         self.data_test = Highway2Dataset(root_dir=root_dir, subset="test", transform=None)
@@ -231,6 +260,9 @@ class HighwayDataModule(L.LightningDataModule):
             self.data_train = Subset(data_train, final_train_indices.tolist())
         else:
             self.data_train = Subset(data_train, train_indices.tolist())
+
+        if use_cross_site_augmentation:
+            self.data_train = PairTransformDataset(self.data_train, [SyntheticJammer(p=0.15, min_db=12.0), BenignSpurs(p=0.3)])
 
         self.data_val = Subset(data_val, val_indices.tolist())
 
