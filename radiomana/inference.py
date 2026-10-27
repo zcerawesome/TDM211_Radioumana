@@ -1,11 +1,15 @@
 """
-Run the trained Highway2 -> Highway1 ViT jamming detector.
+Run the trained ViT jamming detector.
+
+The default weights (models/vit_hw2_hw1train.pt) were trained on Highway2 plus the labelled Highway1
+train.txt split. models/vit_hw2_to_hw1.pt never saw Highway1 (zero-shot); pass it to load_jamming_detector
+to use it instead.
 
     from radiomana import predict_jamming
 
     result = predict_jamming("fiot_highway1_subset/data/40504.npy")
     result.jammed      # array([False])
-    result.p_jammed    # array([0.03])
+    result.p_jammed    # array([0.05])
 
 Also usable from the shell:
 
@@ -22,7 +26,7 @@ import torch
 
 from .models import HighwayViTModel
 
-DEFAULT_WEIGHTS = Path(__file__).resolve().parent.parent / "models" / "vit_hw2_to_hw1.pt"
+DEFAULT_WEIGHTS = Path(__file__).resolve().parent.parent / "models" / "vit_hw2_hw1train.pt"
 JAMMED_MIN_CLASS = 4  # Highway2 classes 4-8 are interference
 CLASS_LABELS = [
     "None (background a)",

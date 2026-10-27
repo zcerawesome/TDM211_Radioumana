@@ -9,7 +9,7 @@ import numpy as np
 import torch
 from imblearn.over_sampling import RandomOverSampler
 from sklearn.model_selection import train_test_split
-from torch.utils.data import DataLoader, Dataset, Subset
+from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset, WeightedRandomSampler
 from torchvision.transforms import v2
 
 from .transforms import BenignSpurs, LogNoise, RandomFreqFlip, RandomFreqShift, RandomTimeCrop, RandomTimeRoll, SyntheticJammer
@@ -127,6 +127,27 @@ class PairTransformDataset(Dataset):
         return sample
 
 
+class BinaryRelabelDataset(Dataset):
+    """
+    Map another site's labels onto Highway2's: jammed samples (label >= jammed_min) become jammed_label, the rest clean_label.
+
+    Used to train on Highway1, whose 11-class taxonomy doesn't match Highway2's 9 classes, so only jammed / clean is kept.
+    """
+
+    def __init__(self, dataset: Dataset, jammed_min: int = 3, jammed_label: int = 4, clean_label: int = 0):
+        self.dataset = dataset
+        self.jammed_min = jammed_min
+        self.jammed_label = jammed_label
+        self.clean_label = clean_label
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        data, label = self.dataset[idx]
+        return data, self.jammed_label if label >= self.jammed_min else self.clean_label
+
+
 class HighwayDataModule(L.LightningDataModule):
     """
     Lightning datamodule for the FIOT Highway2 dataset
@@ -139,8 +160,24 @@ class HighwayDataModule(L.LightningDataModule):
     - test_dataloader: return the test dataloader
     """
 
-    def __init__(self, batch_size: int = 32, num_workers: int = 4, pin_memory: bool = True, use_cross_site_augmentation: bool = False):
-        """use_cross_site_augmentation can be set here because Trainer.fit calls setup() with only the stage"""
+    def __init__(
+        self,
+        batch_size: int = 32,
+        num_workers: int = 4,
+        pin_memory: bool = True,
+        use_cross_site_augmentation: bool = False,
+        highway1_train_root: str | None = None,
+        highway1_jam_weight: float = 8.0,
+    ):
+        """
+        use_cross_site_augmentation can be set here because Trainer.fit calls setup() with only the stage
+
+        highway1_train_root : str, optional
+            environment variable of a Highway1 dataset (e.g. "DSET_FIOT_HIGHWAY1_SUBSET"); its train.txt split
+            is added to training with labels mapped to jammed (class 4) / clean (class 0). Its test.txt split
+            stays held out. Only 1 in 64 Highway1 samples is jammed, so those are drawn highway1_jam_weight
+            times more often than other samples.
+        """
         super().__init__()
         # this allows access to all hparams via self.hparams
         self.save_hyperparameters(logger=False)
@@ -261,16 +298,31 @@ class HighwayDataModule(L.LightningDataModule):
         else:
             self.data_train = Subset(data_train, train_indices.tolist())
 
+        self.train_weights = None
+        if self.hparams.highway1_train_root:
+            data_hw1 = Highway2Dataset(
+                root_dir=self.hparams.highway1_train_root,
+                subset="train",
+                transform=v2.Compose(train_transforms) if train_transforms else None,
+            )
+            hw1_jammed = np.array([label >= 3 for _, label in data_hw1.items])
+            self.train_weights = np.concatenate([np.ones(len(self.data_train)), np.where(hw1_jammed, self.hparams.highway1_jam_weight, 1.0)])
+            self.data_train = ConcatDataset([self.data_train, BinaryRelabelDataset(data_hw1)])
+
         if use_cross_site_augmentation:
             self.data_train = PairTransformDataset(self.data_train, [SyntheticJammer(p=0.15, min_db=12.0), BenignSpurs(p=0.3)])
 
         self.data_val = Subset(data_val, val_indices.tolist())
 
     def train_dataloader(self):
+        sampler = None
+        if self.train_weights is not None:
+            sampler = WeightedRandomSampler(torch.from_numpy(self.train_weights), num_samples=len(self.train_weights), replacement=True)
         return DataLoader(
             self.data_train,
             batch_size=self.hparams.batch_size,
-            shuffle=True,
+            shuffle=sampler is None,
+            sampler=sampler,
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
         )

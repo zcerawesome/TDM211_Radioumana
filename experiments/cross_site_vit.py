@@ -1,9 +1,12 @@
 """
 Train HighwayViTModel on Highway2 and evaluate binary jammed / not-jammed transfer to Highway1.
 
-Expects caches from experiments/build_cache.py. Highway1 is never trained on:
-  - hw1 train.txt split (12,911 samples, 110 jammed) is used to compare runs
-  - hw1 test.txt split (3,473 samples, 143 jammed) is the held-out report
+Expects caches from experiments/build_cache.py. By default Highway1 is never trained on:
+  - hw1 train.txt split (12,911 samples, 202 jammed) is used to compare runs
+  - hw1 test.txt split (3,473 samples, 51 jammed) is the held-out report
+
+--hw1-train adds the labelled hw1 train.txt split to training (jammed -> class 4, clean -> class 0),
+so only the hw1 test.txt numbers stay held out.
 """
 
 import argparse
@@ -48,6 +51,8 @@ def parse_args():
     parser.add_argument("--synth-relative-row", action="store_true", help="measure synthetic tone power from the row's own level instead of the global median")
     parser.add_argument("--spur-p", type=float, default=0.0, help="chance of painting a faint benign spur onto a clean sample (label stays clean)")
     parser.add_argument("--balance", action="store_true", help="oversample jammed samples to ~25% of each batch")
+    parser.add_argument("--hw1-train", action="store_true", help="also train on the labelled hw1 train.txt split")
+    parser.add_argument("--hw1-jam-weight", type=float, default=8.0, help="how much more often hw1 jammed samples are drawn than other samples")
     parser.add_argument("--seed", type=int, default=0)
     return parser.parse_args()
 
@@ -210,6 +215,13 @@ def binary_report(p_jam, y_true_bin, threshold=0.5):
     }
 
 
+def curve_point(p_jam, y_true_bin):
+    """binary cross-entropy on P(jammed) plus F1 / AUROC, comparable between the train and test curves"""
+    p = np.clip(p_jam, 1e-6, 1 - 1e-6)
+    report = binary_report(p_jam, y_true_bin)
+    return {"bce": float(-(y_true_bin * np.log(p) + (1 - y_true_bin) * np.log(1 - p)).mean()), "f1": report["f1"], "auroc": report["auroc"]}
+
+
 def best_f1_threshold(p_jam, y_true_bin):
     candidates = np.unique(np.quantile(p_jam, np.linspace(0.5, 0.9999, 2000)))
     scores = [binary_report(p_jam, y_true_bin, t)["f1"] for t in candidates]
@@ -238,6 +250,21 @@ def main():
     train_x = torch.from_numpy(np.asarray(hw2_x[np.sort(train_idx)]))  # ~1.2 GB fp16 in RAM
     train_y = torch.from_numpy(hw2_y[np.sort(train_idx)])
     val_x, val_y = hw2_x[np.sort(val_idx)], hw2_y[np.sort(val_idx)]
+    sample_weights = None
+    if args.hw1_train:
+        # hw1 classes don't map onto hw2's, so only the jammed / clean distinction is kept
+        hw1_mapped = np.where(hw1_sel_y >= HW1_JAMMED_MIN, HW2_JAMMED_MIN, 0)
+        hw1_jammed = hw1_sel_y >= HW1_JAMMED_MIN
+        train_x = torch.cat([train_x, torch.from_numpy(np.asarray(hw1_sel_x))])
+        train_y = torch.cat([train_y, torch.from_numpy(hw1_mapped)])
+        # only 202 of 12,911 hw1 samples are jammed; draw them more often so they register
+        sample_weights = torch.from_numpy(np.concatenate([np.ones(len(train_idx)), np.where(hw1_jammed, args.hw1_jam_weight, 1.0)]))
+
+    # fixed, un-augmented sample of the training pool, evaluated each epoch for the train vs test curve
+    curve_idx = np.sort(np.random.default_rng(0).choice(len(train_y), 4000, replace=False))
+    curve_train_x = train_x[curve_idx].numpy()
+    curve_train_bin = (train_y[curve_idx] >= HW2_JAMMED_MIN).numpy().astype(int)
+    hw1_test_bin = (hw1_test_y >= HW1_JAMMED_MIN).astype(int)
 
     num_classes = 2 if args.task == "binary" else 9
     model = HighwayViTModel(
@@ -262,7 +289,7 @@ def main():
     if args.balance:
         # jammed samples drawn ~25% of the time instead of ~7.5%
         weights = np.where(is_jammed, 0.25 / is_jammed.sum(), 0.75 / (~is_jammed).sum())
-        sampler_weights = torch.from_numpy(weights)
+        sample_weights = torch.from_numpy(weights)
     steps_per_epoch = len(train_y) // args.batch_size
     total_steps = steps_per_epoch * args.epochs
     warmup = min(300, total_steps // 10)
@@ -272,8 +299,8 @@ def main():
     step = 0
     t0 = time.time()
     for epoch in range(args.epochs):
-        if args.balance:
-            order = torch.multinomial(sampler_weights, len(train_y), replacement=True)
+        if sample_weights is not None:
+            order = torch.multinomial(sample_weights, len(train_y), replacement=True)
         else:
             order = torch.randperm(len(train_y))
         running = []
@@ -316,13 +343,16 @@ def main():
             "hw2_val_multi_acc": float((val_probs.argmax(1) == val_y).mean()) if args.task == "multi" else None,
             "hw2_val_bal_acc": val_bin["bal_acc"],
             "hw1_sel": sel,
+            "curve_train": curve_point(jam_prob(predict(model, curve_train_x), args.task), curve_train_bin),
+            "curve_hw1_test": curve_point(jam_prob(predict(model, hw1_test_x), args.task), hw1_test_bin),
             "minutes": (time.time() - t0) / 60,
         }
         history.append(record)
         print(
             f"[{args.name}] ep {epoch} loss {record['train_loss']:.3f} | hw2 val bal {val_bin['bal_acc']:.3f}"
             f" | hw1-sel bal {sel['bal_acc']:.3f} R {sel['recall']:.3f} spec {sel['specificity']:.4f} F1 {sel['f1']:.3f}"
-            f" AUROC {sel['auroc']:.3f} AP {sel['ap']:.3f} | {record['minutes']:.1f} min",
+            f" AUROC {sel['auroc']:.3f} AP {sel['ap']:.3f} | train bce {record['curve_train']['bce']:.4f} F1 {record['curve_train']['f1']:.3f}"
+            f" | hw1-test bce {record['curve_hw1_test']['bce']:.4f} F1 {record['curve_hw1_test']['f1']:.3f} | {record['minutes']:.1f} min",
             flush=True,
         )
 
@@ -331,7 +361,6 @@ def main():
     hw2_test = binary_report(jam_prob(test_probs, args.task), (hw2_test_y >= HW2_JAMMED_MIN).astype(int))
     hw2_test["multi_acc"] = float((test_probs.argmax(1) == hw2_test_y).mean()) if args.task == "multi" else None
     test_p = jam_prob(predict(model, hw1_test_x), args.task)
-    hw1_test_bin = (hw1_test_y >= HW1_JAMMED_MIN).astype(int)
     sel_bin = (hw1_sel_y >= HW1_JAMMED_MIN).astype(int)
     tuned_t = best_f1_threshold(sel_p, sel_bin)
     all_p = np.concatenate([sel_p, test_p])
