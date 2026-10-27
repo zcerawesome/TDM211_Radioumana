@@ -21,7 +21,7 @@ python experiments/cross_site_vit.py --cache /path/to/cache --out runs --name G_
     --synth-min-db 12 --synth-relative-row --spur-p 0.3 --hw1-train
 
 # 4. train vs Highway1 test curves per epoch
-python experiments/plot_curves.py runs/E_seed1.json runs/G_hw1train.json -o train_test_curves.png
+python experiments/plot_curves.py runs/E_seed1.json -o train_test_curves.png
 ```
 
 ## Library equivalents
@@ -100,8 +100,8 @@ Highway1), but uses the official `train.txt` / `test.txt` split instead of 15% o
 
 ![train vs test curves](train_test_curves.png)
 
-Train vs Highway1 test per epoch for the E repeat (G was trained before per-epoch curves were logged, so
-only its final test F1 is shown). The train loss sits above the test loss because ~8% of training samples
+Train vs Highway1 test per epoch for the E repeat (G was trained before per-epoch curves were logged, so it
+has no curve). The train loss sits above the test loss because ~8% of training samples
 are jammed vs 1.5% of Highway1 test samples, so it reflects the base rate rather than overfitting.
 
 What mattered:

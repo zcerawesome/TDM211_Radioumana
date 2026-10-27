@@ -1,7 +1,7 @@
 """
 Plot train vs Highway1 test curves per epoch from cross_site_vit.py result files.
 
-    python experiments/plot_curves.py runs/E_seed1.json runs/G_hw1train_seed1.json -o curves.png
+    python experiments/plot_curves.py runs/E_seed1.json -o curves.png
 """
 
 import argparse
