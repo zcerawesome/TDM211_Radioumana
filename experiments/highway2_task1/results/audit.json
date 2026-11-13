@@ -1,0 +1,8 @@
+{
+  "exact_cross_split_duplicate_groups": [],
+  "within_split_duplicate_groups": [],
+  "session_metadata_available": false,
+  "session_separation": "Unverifiable: only numeric filenames and class labels supplied.",
+  "original_train_manifest_sha256": "4d9f2f78fbba250faa754d789f5327ebe0356a7bfd23195b94a74ae7137f591b",
+  "original_test_manifest_sha256": "9a47f4d24e2b1add4a444063bd9662d0e131003202f7a7b0cec723b558b6d364"
+}

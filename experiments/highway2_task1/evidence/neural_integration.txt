@@ -1,0 +1,14 @@
+Seed set to 20261112
+Full read/hash audit: train 13224
+Full read/hash audit: val 1319
+Full read/hash audit: test 3296
+GPU available: True (mps), used: False
+TPU available: False, using: 0 TPU cores
+${PYTHON_ENV}/lib/python3.14/site-packages/lightning/pytorch/trainer/setup.py:175: GPU available but not used. You can set it by doing `Trainer(accelerator='gpu')`.
+💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+`Trainer(limit_val_batches=1)` was configured so 1 batch will be used.
+${PYTHON_ENV}/lib/python3.14/site-packages/lightning/pytorch/utilities/_pytree.py:21: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+${PYTHON_ENV}/lib/python3.14/site-packages/lightning/pytorch/trainer/connectors/data_connector.py:434: The 'train_dataloader' does not have many workers which may be a bottleneck. Consider increasing the value of the `num_workers` argument` to `num_workers=9` in the `DataLoader` to improve performance.
+${PYTHON_ENV}/lib/python3.14/site-packages/lightning/pytorch/trainer/connectors/data_connector.py:434: The 'val_dataloader' does not have many workers which may be a bottleneck. Consider increasing the value of the `num_workers` argument` to `num_workers=9` in the `DataLoader` to improve performance.
+`Trainer.fit` stopped: `max_epochs=1` reached.
+PASSED: five optimizer updates, originals=9, synthetic=6, one validation batch. Evidence: ${TASK1_OUTPUT}/neural_integration.json

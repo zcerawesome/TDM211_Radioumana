@@ -1,0 +1,12 @@
+{
+  "python": "3.14.0 (v3.14.0:ebf955df7a8, Oct  7 2025, 08:20:14) [Clang 16.0.0 (clang-1600.0.26.6)]",
+  "numpy": "2.5.3",
+  "scikit-learn": "1.9.0",
+  "torch": "2.14.0",
+  "torchvision": "0.29.0",
+  "lightning": "2.6.6",
+  "matplotlib": "3.11.1",
+  "pytest": "9.1.1",
+  "ruff": "0.16.6",
+  "imbalanced-learn": "0.14.2"
+}

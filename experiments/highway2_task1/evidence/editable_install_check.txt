@@ -1,0 +1,9 @@
+Obtaining file://${REPOSITORY}
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Would install radiomana-0.3.0
+
+[notice] A new release of pip is available: 26.2.1 -> 26.3
+[notice] To update, run: ${PYTHON_ENV}/bin/python -m pip install --upgrade pip

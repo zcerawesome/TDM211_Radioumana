@@ -1,0 +1,309 @@
+{
+  "status": "passed",
+  "architecture": "HighwayBaselineModel / torchvision SqueezeNet 1.1",
+  "seed": 20261112,
+  "device": "cpu",
+  "precision": "float32",
+  "optimizer": "repository AdamW lr=0.001 weight_decay=0.05",
+  "dataset_counts": {
+    "original_fitting": 11865,
+    "synthetic": 1359,
+    "augmented_fitting": 13224,
+    "validation": 1319,
+    "test": 3296
+  },
+  "augmented_class_counts": {
+    "2": 4997,
+    "0": 3773,
+    "1": 2074,
+    "5": 500,
+    "4": 474,
+    "8": 345,
+    "7": 432,
+    "6": 500,
+    "3": 129
+  },
+  "actual_training_origins": {
+    "original": 9,
+    "synthetic": 6
+  },
+  "optimizer_updates": 5,
+  "validation_batches": 1,
+  "validation_loss": 2.1972413063049316,
+  "all_arrays_and_manifests_unchanged": true,
+  "files_rehashed_after_training": 17848,
+  "inherited_dataloader_batch_verified": true,
+  "no_synthetic_in_validation_or_test": true,
+  "training_batches": [
+    {
+      "batch": 0,
+      "samples": [
+        {
+          "path": "${HIGHWAY2_ROOT}/data/012288.npy",
+          "label": 0,
+          "split": "train",
+          "origin": "original"
+        },
+        {
+          "path": "${TASK1_OUTPUT}/synthetic/class_3_00000.npy",
+          "label": 3,
+          "split": "train",
+          "origin": "synthetic"
+        },
+        {
+          "path": "${HIGHWAY2_ROOT}/data/005514.npy",
+          "label": 1,
+          "split": "train",
+          "origin": "original"
+        }
+      ],
+      "loss": 5.313211917877197,
+      "gradient_l2_norm": 436.05169677734375,
+      "max_parameter_update": 0.001030564308166504
+    },
+    {
+      "batch": 1,
+      "samples": [
+        {
+          "path": "${HIGHWAY2_ROOT}/data/004755.npy",
+          "label": 2,
+          "split": "train",
+          "origin": "original"
+        },
+        {
+          "path": "${TASK1_OUTPUT}/synthetic/class_4_00000.npy",
+          "label": 4,
+          "split": "train",
+          "origin": "synthetic"
+        },
+        {
+          "path": "${HIGHWAY2_ROOT}/data/000160.npy",
+          "label": 3,
+          "split": "train",
+          "origin": "original"
+        }
+      ],
+      "loss": 2.3227570056915283,
+      "gradient_l2_norm": 52.436607360839844,
+      "max_parameter_update": 0.0010283589363098145
+    },
+    {
+      "batch": 2,
+      "samples": [
+        {
+          "path": "${HIGHWAY2_ROOT}/data/011383.npy",
+          "label": 4,
+          "split": "train",
+          "origin": "original"
+        },
+        {
+          "path": "${TASK1_OUTPUT}/synthetic/class_5_00000.npy",
+          "label": 5,
+          "split": "train",
+          "origin": "synthetic"
+        },
+        {
+          "path": "${HIGHWAY2_ROOT}/data/008522.npy",
+          "label": 5,
+          "split": "train",
+          "origin": "original"
+        }
+      ],
+      "loss": 2.3733761310577393,
+      "gradient_l2_norm": 19.44085693359375,
+      "max_parameter_update": 0.0010200440883636475
+    },
+    {
+      "batch": 3,
+      "samples": [
+        {
+          "path": "${HIGHWAY2_ROOT}/data/016232.npy",
+          "label": 6,
+          "split": "train",
+          "origin": "original"
+        },
+        {
+          "path": "${TASK1_OUTPUT}/synthetic/class_6_00000.npy",
+          "label": 6,
+          "split": "train",
+          "origin": "synthetic"
+        },
+        {
+          "path": "${HIGHWAY2_ROOT}/data/004415.npy",
+          "label": 7,
+          "split": "train",
+          "origin": "original"
+        }
+      ],
+      "loss": 2.2898666858673096,
+      "gradient_l2_norm": 7.044253349304199,
+      "max_parameter_update": 0.0010078102350234985
+    },
+    {
+      "batch": 4,
+      "samples": [
+        {
+          "path": "${HIGHWAY2_ROOT}/data/014683.npy",
+          "label": 8,
+          "split": "train",
+          "origin": "original"
+        },
+        {
+          "path": "${TASK1_OUTPUT}/synthetic/class_7_00000.npy",
+          "label": 7,
+          "split": "train",
+          "origin": "synthetic"
+        },
+        {
+          "path": "${TASK1_OUTPUT}/synthetic/class_8_00000.npy",
+          "label": 8,
+          "split": "train",
+          "origin": "synthetic"
+        }
+      ],
+      "loss": 2.2311742305755615,
+      "gradient_l2_norm": 3.3325424194335938,
+      "max_parameter_update": 0.0010043606162071228
+    }
+  ],
+  "forward_pass_records": [
+    {
+      "phase": "train",
+      "samples": [
+        {
+          "path": "${HIGHWAY2_ROOT}/data/012288.npy",
+          "label": 0,
+          "split": "train",
+          "origin": "original"
+        },
+        {
+          "path": "${TASK1_OUTPUT}/synthetic/class_3_00000.npy",
+          "label": 3,
+          "split": "train",
+          "origin": "synthetic"
+        },
+        {
+          "path": "${HIGHWAY2_ROOT}/data/005514.npy",
+          "label": 1,
+          "split": "train",
+          "origin": "original"
+        }
+      ]
+    },
+    {
+      "phase": "train",
+      "samples": [
+        {
+          "path": "${HIGHWAY2_ROOT}/data/004755.npy",
+          "label": 2,
+          "split": "train",
+          "origin": "original"
+        },
+        {
+          "path": "${TASK1_OUTPUT}/synthetic/class_4_00000.npy",
+          "label": 4,
+          "split": "train",
+          "origin": "synthetic"
+        },
+        {
+          "path": "${HIGHWAY2_ROOT}/data/000160.npy",
+          "label": 3,
+          "split": "train",
+          "origin": "original"
+        }
+      ]
+    },
+    {
+      "phase": "train",
+      "samples": [
+        {
+          "path": "${HIGHWAY2_ROOT}/data/011383.npy",
+          "label": 4,
+          "split": "train",
+          "origin": "original"
+        },
+        {
+          "path": "${TASK1_OUTPUT}/synthetic/class_5_00000.npy",
+          "label": 5,
+          "split": "train",
+          "origin": "synthetic"
+        },
+        {
+          "path": "${HIGHWAY2_ROOT}/data/008522.npy",
+          "label": 5,
+          "split": "train",
+          "origin": "original"
+        }
+      ]
+    },
+    {
+      "phase": "train",
+      "samples": [
+        {
+          "path": "${HIGHWAY2_ROOT}/data/016232.npy",
+          "label": 6,
+          "split": "train",
+          "origin": "original"
+        },
+        {
+          "path": "${TASK1_OUTPUT}/synthetic/class_6_00000.npy",
+          "label": 6,
+          "split": "train",
+          "origin": "synthetic"
+        },
+        {
+          "path": "${HIGHWAY2_ROOT}/data/004415.npy",
+          "label": 7,
+          "split": "train",
+          "origin": "original"
+        }
+      ]
+    },
+    {
+      "phase": "train",
+      "samples": [
+        {
+          "path": "${HIGHWAY2_ROOT}/data/014683.npy",
+          "label": 8,
+          "split": "train",
+          "origin": "original"
+        },
+        {
+          "path": "${TASK1_OUTPUT}/synthetic/class_7_00000.npy",
+          "label": 7,
+          "split": "train",
+          "origin": "synthetic"
+        },
+        {
+          "path": "${TASK1_OUTPUT}/synthetic/class_8_00000.npy",
+          "label": 8,
+          "split": "train",
+          "origin": "synthetic"
+        }
+      ]
+    },
+    {
+      "phase": "val",
+      "samples": [
+        {
+          "path": "${HIGHWAY2_ROOT}/data/003824.npy",
+          "label": 2,
+          "split": "val",
+          "origin": "original"
+        },
+        {
+          "path": "${HIGHWAY2_ROOT}/data/001703.npy",
+          "label": 2,
+          "split": "val",
+          "origin": "original"
+        },
+        {
+          "path": "${HIGHWAY2_ROOT}/data/009106.npy",
+          "label": 6,
+          "split": "val",
+          "origin": "original"
+        }
+      ]
+    }
+  ]
+}
