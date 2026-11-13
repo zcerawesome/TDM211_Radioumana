@@ -119,3 +119,7 @@ applications around Aerospace products without being required to meet the
 obligations of the GPL. To inquire about an alternative license, please get in
 touch with us at [open-source@aero.org](mailto:open-source@aero.org).
 # TDM211_Radioumana
+
+## Task 1: Highway2 synthetic data
+
+See [TASK1_README.md](TASK1_README.md) for the training-only generation pipeline, frozen-split loader, validation and portable reproduction commands. Task 1 generated **1,359** synthetic samples for **13,224** total fitting samples and passed an actual **SqueezeNet training integration test**. Compact results and the research report are in [experiments/highway2_task1](experiments/highway2_task1/REPORT.md). Dataset arrays are excluded from Git; derivative-data attribution and sharing terms are in [DATA_LICENSE.md](experiments/highway2_task1/DATA_LICENSE.md).

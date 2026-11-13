@@ -1,0 +1,27 @@
+
+tests/test_datasets.py::TestHighway1Training::test_binary_relabel PASSED [  5%]
+tests/test_datasets.py::TestHighway1Training::test_default_has_no_highway1 PASSED [ 11%]
+tests/test_datasets.py::TestHighway1Training::test_highway1_train_split_added PASSED [ 16%]
+tests/test_highway2_synthetic.py::test_positive_power_and_reproducibility PASSED [ 22%]
+tests/test_highway2_synthetic.py::test_invalid_arrays[shape] PASSED      [ 27%]
+tests/test_highway2_synthetic.py::test_invalid_arrays[dtype] PASSED      [ 33%]
+tests/test_highway2_synthetic.py::test_invalid_arrays[nan] PASSED        [ 38%]
+tests/test_highway2_synthetic.py::test_invalid_arrays[inf] PASSED        [ 44%]
+tests/test_highway2_synthetic.py::test_budget_includes_rare_background_and_handles_absence PASSED [ 50%]
+tests/test_highway2_synthetic.py::test_manifest_traversal PASSED         [ 55%]
+tests/test_highway2_synthetic.py::test_original_loader_compatibility PASSED [ 61%]
+tests/test_highway2_synthetic.py::test_overlap_blocks_generation PASSED  [ 66%]
+tests/test_highway2_synthetic.py::test_output_protects_source PASSED     [ 72%]
+tests/test_transforms.py::TestCustomTransforms::test_benign_spurs PASSED [ 77%]
+tests/test_transforms.py::TestCustomTransforms::test_log_noise PASSED    [ 83%]
+tests/test_transforms.py::TestCustomTransforms::test_random_time_crop PASSED [ 88%]
+tests/test_transforms.py::TestCustomTransforms::test_roll_shift_flip PASSED [ 94%]
+tests/test_transforms.py::TestCustomTransforms::test_synthetic_jammer PASSED [100%]
+
+=============================== warnings summary ===============================
+tests/test_datasets.py::TestHighway1Training::test_highway1_train_split_added
+  ${PYTHON_ENV}/lib/python3.14/site-packages/torch/utils/data/dataloader.py:759: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+    super().__init__(loader)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 18 passed, 1 warning in 2.49s =========================

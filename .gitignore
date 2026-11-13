@@ -30,3 +30,26 @@ lightning_logs/
 
 # trained model weights are stored with Git LFS
 !models/*.pt
+
+# Task 1 local environments and generated data (compact published results live in experiments/)
+.venv/
+venv/
+env/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.DS_Store
+.env
+.env.*
+/data/
+/datasets/
+/outputs/
+/artifacts/
+/highway2_task1*/
+fiot_highway*/
+*.npy
+*.npz
+*.h5
+*.hdf5
+*.zip
+*.tar.gz

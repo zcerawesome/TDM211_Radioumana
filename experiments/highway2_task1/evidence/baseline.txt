@@ -1,0 +1,6 @@
+Features ready: original 11865
+Features ready: augmented 13224
+Features ready: val 1319
+Features ready: test 3296
+original 0.6302605515098251
+augmented 0.6484371281048935

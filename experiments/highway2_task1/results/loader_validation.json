@@ -1,0 +1,19 @@
+{
+  "samples_checked": 1359,
+  "exact_seed_reproductions": 1359,
+  "validation_matches_original": true,
+  "all_parents_in_original_fitting_split": true,
+  "test_matches_original": true,
+  "maximum_variants_per_parent": 2,
+  "maximum_spectral_deltas": {
+    "centroid_hz": 620.5062519107014,
+    "spread_hz": 786.2281726840883,
+    "peak_hz": 0.0,
+    "db_std": 0.044555724548267506
+  },
+  "batch_shape": [
+    32,
+    512,
+    243
+  ]
+}

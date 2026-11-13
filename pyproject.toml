@@ -15,6 +15,7 @@ dependencies = [
     "imblearn",     # data balancing
     "lightning",    # training framework
     "numpy",        # vector math
+    "matplotlib",   # dataset and augmentation plots
     "pytest-cov",
     "pytest",
     "ruff",         # linter
