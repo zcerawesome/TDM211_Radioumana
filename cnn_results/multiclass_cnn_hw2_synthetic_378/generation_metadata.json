@@ -1,0 +1,24 @@
+{
+  "seed": 42,
+  "target_count": 300,
+  "classes": [
+    3,
+    7,
+    8
+  ],
+  "train_count": 11865,
+  "validation_count": 1319,
+  "synthetic_count": 598,
+  "original_train_class_counts": {
+    "0": 3773,
+    "1": 2074,
+    "2": 4997,
+    "3": 43,
+    "4": 158,
+    "5": 259,
+    "6": 302,
+    "7": 144,
+    "8": 115
+  },
+  "warning": "Validate RF plausibility; synthetic examples come only from train split."
+}
