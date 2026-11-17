@@ -1,0 +1,263 @@
+"""Highway2 multiclass CNN: generate synthetic train samples, then train/evaluate.
+
+Usage (from project root, with DSET_FIOT_HIGHWAY2 set):
+  python experiments/synthetic_multiclass_hw2.py generate
+  python experiments/synthetic_multiclass_hw2.py train --epochs 10
+
+Only official TRAIN is accessed. A reproducible stratified 90/10 split is
+made BEFORE any augmentation. Synthetic samples are generated from train
+indices only; validation samples remain unmodified.
+"""
+import argparse
+import csv
+import json
+import random
+from collections import Counter
+from pathlib import Path
+
+import numpy as np
+import torch
+from sklearn.metrics import classification_report, confusion_matrix, f1_score
+from sklearn.model_selection import train_test_split
+from torch import nn
+from torch.utils.data import DataLoader, Dataset
+
+from radiomana.datasets import Highway2Dataset
+from train_binary_cnn_hw2 import BinaryCNN
+
+
+def seed_everything(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
+def split_indices(base, seed):
+    labels = np.array([int(item[1]) for item in base.items])
+    return train_test_split(
+        np.arange(len(base)), test_size=0.1, stratify=labels,
+        random_state=seed)
+
+
+def make_synthetic_psd(x, rng):
+    """Small changes in PSD dB space; check physical validity with RF team.
+
+    Avoid uniform dB offsets: the model subtracts the sample median, which
+    would mostly cancel them. Do not flip/rotate or wrap frequency bins.
+    """
+    x = x.clone().float()
+    if rng.random() < 0.9:
+        # Per-bin noise with scale 0.15--0.50 dB.
+        sigma = float(rng.uniform(0.15, 0.50))
+        x += torch.from_numpy(rng.normal(0, sigma, size=x.shape).astype('float32'))
+    if rng.random() < 0.5:
+        # Shift frequency axis by at most two bins; pad with original median.
+        shift = int(rng.choice([-2, -1, 1, 2]))
+        shifted = torch.full_like(x, float(x.median()))
+        if shift > 0:
+            shifted[shift:, :] = x[:-shift, :]
+        else:
+            shifted[:shift, :] = x[-shift:, :]
+        x = shifted
+    return x
+
+
+class OriginalSubset(Dataset):
+    def __init__(self, base, indices):
+        self.base = base
+        self.indices = [int(i) for i in indices]
+
+    def __len__(self):
+        return len(self.indices)
+
+    def __getitem__(self, i):
+        x, y = self.base[self.indices[i]]
+        return x.float(), int(y)
+
+
+class SyntheticTrainingSet(Dataset):
+    def __init__(self, base, train_indices, records, folder):
+        self.base_set = OriginalSubset(base, train_indices)
+        self.records = records
+        self.folder = folder
+
+    def __len__(self):
+        return len(self.base_set) + len(self.records)
+
+    def __getitem__(self, i):
+        if i < len(self.base_set):
+            return self.base_set[i]
+        row = self.records[i - len(self.base_set)]
+        return torch.from_numpy(np.load(self.folder / row['file']).copy()).float(), int(row['class'])
+
+
+def generate(args):
+    seed_everything(args.seed)
+    base = Highway2Dataset(subset='train')
+    train_idx, val_idx = split_indices(base, args.seed)
+    train_labels = [int(base.items[int(i)][1]) for i in train_idx]
+    counts = Counter(train_labels)
+    rng = np.random.default_rng(args.seed + 100)
+    output = Path(args.output)
+    data_folder = output / 'synthetic_npy'
+    # Avoid silently mixing existing synthetic files from different settings.
+    if (output / 'manifest.csv').exists():
+        raise SystemExit(f'{output / "manifest.csv"} already exists. Use a new --output directory.')
+    data_folder.mkdir(parents=True, exist_ok=True)
+    rows = []
+    for cls in args.classes:
+        original_ids = [int(i) for i in train_idx if int(base.items[int(i)][1]) == cls]
+        if not original_ids:
+            raise ValueError(f'No training examples for class {cls}')
+        extra = max(0, args.target_count - len(original_ids))
+        for j in range(extra):
+            source_idx = int(rng.choice(original_ids))
+            x, y = base[source_idx]
+            synthetic = make_synthetic_psd(x, rng)
+            filename = f'class_{cls}_{j:04d}.npy'
+            np.save(data_folder / filename, synthetic.numpy().astype(np.float32))
+            rows.append({'file': filename, 'class': cls, 'source_train_index': source_idx})
+        print(f'Class {cls}: {len(original_ids)} original train + {extra} synthetic = {len(original_ids)+extra}', flush=True)
+    with (output / 'manifest.csv').open('w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=['file','class','source_train_index'])
+        writer.writeheader()
+        writer.writerows(rows)
+    metadata = {
+        'seed': args.seed, 'target_count': args.target_count,
+        'classes': args.classes, 'train_count': len(train_idx),
+        'validation_count': len(val_idx), 'synthetic_count': len(rows),
+        'original_train_class_counts': dict(sorted(counts.items())),
+        'warning': 'Validate RF plausibility; synthetic examples come only from train split.'
+    }
+    (output / 'generation_metadata.json').write_text(json.dumps(metadata, indent=2))
+    print(f'Generated {len(rows)} synthetic files in {data_folder}')
+    print('No validation or official test examples were augmented.')
+
+
+def predict(model, loader, device):
+    model.eval()
+    actual, predicted = [], []
+    with torch.inference_mode():
+        for x, y in loader:
+            scores = model(x.to(device))
+            actual.extend(y.tolist())
+            predicted.extend(scores.argmax(1).cpu().tolist())
+    return actual, predicted
+
+
+def train(args):
+    seed_everything(args.seed)
+    folder = Path(args.output)
+    meta_file = folder / 'generation_metadata.json'
+    if not meta_file.is_file():
+        raise SystemExit('Generate synthetic data first with the same --output path.')
+    meta = json.loads(meta_file.read_text())
+    if int(meta['seed']) != args.seed:
+        raise SystemExit('Seed differs from synthetic generation seed; would change train/validation split.')
+    with (folder / 'manifest.csv').open(newline='') as f:
+        records = list(csv.DictReader(f))
+    base = Highway2Dataset(subset='train')
+    train_idx, val_idx = split_indices(base, args.seed)
+    train_dataset = SyntheticTrainingSet(base, train_idx, records, folder / 'synthetic_npy')
+    val_dataset = OriginalSubset(base, val_idx)
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True,
+                              num_workers=args.workers)
+    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, num_workers=args.workers)
+    device = ('cuda' if torch.cuda.is_available() else
+              'mps' if torch.backends.mps.is_available() else 'cpu')
+    model = BinaryCNN()
+    model.net[-1] = nn.Linear(64, 9)
+    model.to(device)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
+    criterion = nn.CrossEntropyLoss()
+    best = -1.0
+    best_epoch = None
+    best_state = None
+    history = []
+    print(f'Device: {device}; {len(train_idx)} originals + {len(records)} synthetic; validation: {len(val_idx)} originals', flush=True)
+    for epoch in range(1, args.epochs + 1):
+        model.train()
+        cumulative, seen = 0.0, 0
+        for x, y in train_loader:
+            x, y = x.to(device), y.to(device)
+            optimizer.zero_grad(set_to_none=True)
+            loss = criterion(model(x), y)
+            loss.backward()
+            optimizer.step()
+            cumulative += loss.item() * len(y)
+            seen += len(y)
+        truth, preds = predict(model, val_loader, device)
+        score = float(f1_score(truth, preds, labels=list(range(9)), average='macro', zero_division=0))
+        history.append({'epoch': epoch, 'train_loss': cumulative / seen, 'val_macro_f1': score})
+        print(f'Epoch {epoch}/{args.epochs}: loss={cumulative/seen:.4f}, validation macro F1={score:.4f}', flush=True)
+        if score > best:
+            best = score
+            best_epoch = epoch
+            best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+    model.load_state_dict(best_state)
+    torch.save(best_state, folder / 'multiclass_synthetic_best.pt')
+    truth, preds = predict(model, val_loader, device)
+    report = classification_report(truth, preds, labels=list(range(9)), output_dict=True, zero_division=0)
+    cm = confusion_matrix(truth, preds, labels=list(range(9)))
+    with (folder / 'per_class_validation.csv').open('w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['class', 'precision', 'recall', 'f1', 'support'])
+        for cls in range(9):
+            r = report[str(cls)]
+            writer.writerow([cls, r['precision'], r['recall'], r['f1-score'], r['support']])
+    with (folder / 'confusion_matrix.csv').open('w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['actual\\predicted'] + list(range(9)))
+        for i, row in enumerate(cm):
+            writer.writerow([i] + row.tolist())
+    with (folder / 'training_history.csv').open('w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=['epoch','train_loss','val_macro_f1'])
+        writer.writeheader()
+        writer.writerows(history)
+    (folder / 'results.json').write_text(json.dumps({
+        'seed': args.seed, 'best_epoch': best_epoch, 'best_validation_macro_f1': best,
+        'per_class_validation': {str(i): report[str(i)] for i in range(9)},
+        'confusion_matrix': cm.tolist()
+    }, indent=2))
+    print(f'\nBest epoch: {best_epoch}; validation macro F1: {best:.4f}')
+    print('Class | Precision | Recall | F1')
+    for cls in range(9):
+        r = report[str(cls)]
+        print(f'{cls:>5} | {r["precision"]:.3f} | {r["recall"]:.3f} | {r["f1-score"]:.3f}')
+    baseline_file = Path('runs/multiclass_cnn_hw2_baseline/results.json')
+    if baseline_file.exists():
+        previous = json.loads(baseline_file.read_text())
+        print(f'\nBaseline validation macro F1: {previous["best_validation_macro_f1"]:.4f}')
+        print(f'Synthetic validation macro F1: {best:.4f}')
+        print('Per-class baseline -> synthetic F1:')
+        for cls in range(9):
+            old = previous['per_class_validation'][str(cls)]['f1-score']
+            new = report[str(cls)]['f1-score']
+            print(f'  {cls}: {old:.3f} -> {new:.3f}')
+    print(f'\nSaved model + results under {folder}; official test split untouched.')
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('action', choices=['generate', 'train'])
+    parser.add_argument('--classes', type=int, nargs='+', default=[3, 7, 8])
+    parser.add_argument('--target-count', type=int, default=300)
+    parser.add_argument('--epochs', type=int, default=10)
+    parser.add_argument('--batch-size', type=int, default=16)
+    parser.add_argument('--lr', type=float, default=1e-3)
+    parser.add_argument('--workers', type=int, default=0)
+    parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--output', default='runs/multiclass_cnn_hw2_synthetic_378')
+    args = parser.parse_args()
+    if not set(args.classes).issubset(set(range(9))):
+        parser.error('--classes must be original Highway2 labels 0..8')
+    if args.action == 'generate':
+        generate(args)
+    else:
+        train(args)
+
+
+if __name__ == '__main__':
+    main()
